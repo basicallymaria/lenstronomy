@@ -61,14 +61,17 @@ class ImageModel(object):
         if point_source_class is None:
             point_source_class = PointSource(point_source_type_list=[])
         self.PointSource = point_source_class
-        if self.PointSource._lensModel is None:
+        if self.PointSource._lens_model is None:
             self.PointSource.update_lens_model(lens_model_class=lens_model_class)
         x_center, y_center = self.Data.center
+        search_window = np.max(self.Data.width)
+        # either have the pixel resolution of the window resolved in 200x200 grid
+        min_distance = min(self.Data.pixel_width, search_window / 200)
         self.PointSource.update_search_window(
-            search_window=np.max(self.Data.width),
+            search_window=search_window,
             x_center=x_center,
             y_center=y_center,
-            min_distance=self.Data.pixel_width,
+            min_distance=min_distance,
             only_from_unspecified=True,
         )
         self._psf_error_map = self.PSF.psf_error_map_bool
@@ -111,7 +114,7 @@ class ImageModel(object):
             self.source_mapping = None  # handled with pixelated operator
         else:
             self.source_mapping = Image2SourceMapping(
-                lensModel=lens_model_class, sourceModel=source_model_class
+                lens_model=lens_model_class, source_model=source_model_class
             )
 
         self._pb = data_class.primary_beam
@@ -294,7 +297,12 @@ class ImageModel(object):
             )
         else:
             source_light = self.source_mapping.image_flux_joint(
-                ra_grid, dec_grid, kwargs_lens, kwargs_source, k=k
+                ra_grid,
+                dec_grid,
+                kwargs_lens,
+                kwargs_source,
+                kwargs_special=kwargs_special,
+                k=k,
             )
             source_light *= self._extinction.extinction(
                 ra_grid,

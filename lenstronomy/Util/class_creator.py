@@ -21,6 +21,7 @@ def create_class_instances(
     lens_redshift_list=None,
     kwargs_interp=None,
     multi_plane=False,
+    distance_ratio_sampling=False,
     observed_convention_index=None,
     source_light_model_list=None,
     lens_light_model_list=None,
@@ -46,9 +47,13 @@ def create_class_instances(
     surface_brightness_smoothing=0.001,
     sersic_major_axis=None,
     tabulated_deflection_angles=None,
+    decouple_multi_plane=False,
+    kwargs_multiplane_model=None,
+    kwargs_multiplane_model_point_source=None,
     tracer_source_model_list=None,
     tracer_source_band=0,
     tracer_partition=None,
+    tracer_type="LINEAR",
 ):
     """
 
@@ -58,7 +63,8 @@ def create_class_instances(
     :param z_source_convention: float, redshift of a source to define the reduced deflection angles of the lens models.
      If None, 'z_source' is used.
     :param lens_redshift_list:
-    :param multi_plane:
+    :param multi_plane: bool, if True, computes the lensing quantities in multi-plane mode
+    :param distance_ratio_sampling: bool, if True, samples the distance ratios in multi-lens-plane
     :param kwargs_interp: interpolation keyword arguments specifying the numerics.
      See description in the Interpolate() class. Only applicable for 'INTERPOL' and 'INTERPOL_SCALED' models.
     :param observed_convention_index:
@@ -97,11 +103,16 @@ def create_class_instances(
      convention in the lenstronomy yaml setting (which by default is =False)
     :param tabulated_deflection_angles: a user-specified class with a call method that returns deflection angles given
      (x, y) coordinates on the sky. This class gets passed to the lens model class TabulatedDeflections
+    :param decouple_multi_plane: bool; if True, creates an instance of MultiPlaneDecoupled
+    :param kwargs_multiplane_model: keyword arguments used to create an instance of MultiPlaneDecoupled if decouple_multi_plane is True
+    :param kwargs_multiplane_model_point_source: keyword arguments used to create an option MultiPlaneDecoupled class for the lensed point source to be treated separately from the rest of the imaging data
     :param tracer_source_model_list: list of tracer source models (not used in this function)
     :param tracer_source_band: integer, list index of source surface brightness band to apply tracer model to
     :param tracer_partition: in case of tracer models for specific sub-parts of the surface brightness model
      [[list of light profiles, list of tracer profiles], [list of light profiles, list of tracer profiles], [...], ...]
     :type tracer_partition: None or list
+    :param tracer_type: 'LINEAR' or 'LOG', to determine how tracers are summed between components
+    :type tracer_type: string
     :return: lens_model_class, source_model_class, lens_light_model_class, point_source_class, extinction_class
     """
     if lens_model_list is None:
@@ -136,6 +147,7 @@ def create_class_instances(
                 counter += 1
         else:
             observed_convention_index_i = observed_convention_index
+
     lens_model_class = LensModel(
         lens_model_list=lens_model_list_i,
         z_lens=z_lens,
@@ -144,23 +156,31 @@ def create_class_instances(
         lens_redshift_list=lens_redshift_list_i,
         multi_plane=multi_plane,
         cosmo=cosmo,
+        distance_ratio_sampling=distance_ratio_sampling,
         observed_convention_index=observed_convention_index_i,
         kwargs_interp=kwargs_interp,
         numerical_alpha_class=tabulated_deflection_angles,
+        decouple_multi_plane=decouple_multi_plane,
+        kwargs_multiplane_model=kwargs_multiplane_model,
     )
 
-    lens_model_class_all = LensModel(
-        lens_model_list=lens_model_list,
-        z_lens=z_lens,
-        z_source=z_source,
-        z_source_convention=z_source_convention,
-        lens_redshift_list=lens_redshift_list,
-        multi_plane=multi_plane,
-        cosmo=cosmo,
-        observed_convention_index=observed_convention_index,
-        kwargs_interp=kwargs_interp,
-        numerical_alpha_class=tabulated_deflection_angles,
-    )
+    if kwargs_multiplane_model_point_source is not None:
+        lens_model_class_point_source = LensModel(
+            lens_model_list=lens_model_list,
+            z_lens=z_lens,
+            z_source=z_source,
+            z_source_convention=z_source_convention,
+            lens_redshift_list=lens_redshift_list,
+            multi_plane=multi_plane,
+            cosmo=cosmo,
+            observed_convention_index=observed_convention_index,
+            kwargs_interp=kwargs_interp,
+            numerical_alpha_class=tabulated_deflection_angles,
+            decouple_multi_plane=decouple_multi_plane,
+            kwargs_multiplane_model=kwargs_multiplane_model_point_source,
+        )
+    else:
+        lens_model_class_point_source = lens_model_class
 
     if index_source_light_model_list is None or all_models is True:
         source_light_model_list_i = source_light_model_list
@@ -232,7 +252,7 @@ def create_class_instances(
             ]
     point_source_class = PointSource(
         point_source_type_list=point_source_model_list_i,
-        lensModel=lens_model_class_all,
+        lens_model=lens_model_class_point_source,
         fixed_magnification_list=fixed_magnification_list_i,
         flux_from_point_source_list=flux_from_point_source_list,
         additional_images_list=additional_images_list_i,
@@ -381,7 +401,7 @@ def create_tracer_model(tracer_data, kwargs_model, tracer_likelihood_mask=None):
 
     :param tracer_data:
     :param kwargs_model:
-    :param tracer_likelihood_mask_list:
+    :param tracer_likelihood_mask:
 
     :return:
     """

@@ -2,6 +2,7 @@ __author__ = "sibirrer"
 from lenstronomy.LensModel.single_plane import SinglePlane
 from lenstronomy.LensModel.LineOfSight.single_plane_los import SinglePlaneLOS
 from lenstronomy.LensModel.MultiPlane.multi_plane import MultiPlane
+from lenstronomy.LensModel.MultiPlane.decoupled_multi_plane import MultiPlaneDecoupled
 from lenstronomy.Cosmo.lens_cosmo import LensCosmo
 from lenstronomy.Util import constants as const
 
@@ -30,6 +31,9 @@ class LensModel(object):
         num_z_interp=100,
         kwargs_interp=None,
         kwargs_synthesis=None,
+        decouple_multi_plane=False,
+        kwargs_multiplane_model=None,
+        distance_ratio_sampling=False,
     ):
         """
 
@@ -57,6 +61,8 @@ class LensModel(object):
          This number should be higher or equal the maximum of the source redshift and/or the z_source_convention
         :param num_z_interp: (only in multi-plane with cosmo_interp=True); number of redshift bins for interpolating
          distances
+        :param distance_ratio_sampling: bool, if True, will use sampled
+         distance ratios to update T_ij value in multi-lens plane computation.
         """
         self.lens_model_list = lens_model_list
         self.z_lens = z_lens
@@ -90,6 +96,10 @@ class LensModel(object):
         # Multi-plane or single-plane lensing?
         self.multi_plane = multi_plane
         if multi_plane is True:
+            if lens_redshift_list is None:
+                raise ValueError(
+                    "In multi-plane lensing, you need to specify the redshifts of the lensing planes."
+                )
             if z_source is None:
                 raise ValueError(
                     "z_source needs to be set for multi-plane lens modelling."
@@ -98,20 +108,40 @@ class LensModel(object):
                 raise ValueError(
                     "LOS effects and multi-plane lensing are incompatible."
                 )
-            self.lens_model = MultiPlane(
-                z_source,
-                lens_model_list,
-                lens_redshift_list,
-                cosmo=cosmo,
-                numerical_alpha_class=numerical_alpha_class,
-                observed_convention_index=observed_convention_index,
-                z_source_convention=z_source_convention,
-                cosmo_interp=cosmo_interp,
-                z_interp_stop=z_interp_stop,
-                num_z_interp=num_z_interp,
-                kwargs_interp=kwargs_interp,
-                kwargs_synthesis=kwargs_synthesis,
-            )
+
+            if decouple_multi_plane:
+                self.lens_model = MultiPlaneDecoupled(
+                    z_source,
+                    lens_model_list,
+                    lens_redshift_list,
+                    cosmo=cosmo,
+                    numerical_alpha_class=numerical_alpha_class,
+                    observed_convention_index=observed_convention_index,
+                    z_source_convention=z_source_convention,
+                    cosmo_interp=cosmo_interp,
+                    z_interp_stop=z_interp_stop,
+                    num_z_interp=num_z_interp,
+                    kwargs_interp=kwargs_interp,
+                    kwargs_synthesis=kwargs_synthesis,
+                    **kwargs_multiplane_model
+                )
+            else:
+                self.lens_model = MultiPlane(
+                    z_source,
+                    lens_model_list,
+                    lens_redshift_list,
+                    cosmo=cosmo,
+                    numerical_alpha_class=numerical_alpha_class,
+                    observed_convention_index=observed_convention_index,
+                    z_source_convention=z_source_convention,
+                    cosmo_interp=cosmo_interp,
+                    z_interp_stop=z_interp_stop,
+                    num_z_interp=num_z_interp,
+                    kwargs_interp=kwargs_interp,
+                    kwargs_synthesis=kwargs_synthesis,
+                    distance_ratio_sampling=distance_ratio_sampling,
+                )
+
         else:
             if los_effects is True:
                 self.lens_model = SinglePlaneLOS(

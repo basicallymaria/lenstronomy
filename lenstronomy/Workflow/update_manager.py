@@ -150,7 +150,6 @@ class UpdateManager(object):
                 self._special_lower,
                 self._special_upper,
             ) = ({}, {}, {}, {}, {})
-
         self._kwargs_temp = self.init_kwargs
 
     # TODO: check compatibility with number of point sources provided as well as other parameter labeling
@@ -270,7 +269,9 @@ class UpdateManager(object):
             lens_temp = self.param_class.update_lens_scaling(
                 special_temp, lens_temp, inverse=False
             )
-            source_temp = self.param_class.image2source_plane(source_temp, lens_temp)
+            source_temp = self.param_class.image2source_plane(
+                source_temp, lens_temp, special_temp
+            )
         return {
             "kwargs_lens": lens_temp,
             "kwargs_source": source_temp,
